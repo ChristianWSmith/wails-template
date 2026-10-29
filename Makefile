@@ -101,7 +101,7 @@ artifact: package
 	case "$$(go env GOOS)" in \
 	linux) cp bin/$(APP) "$$name" ;; \
 	windows) cp bin/$(APP).exe "$$name" ;; \
-	darwin) (cd bin && zip -ry "../../$$name" $(APP).app) ;; \
+	darwin) (cd bin && zip -ry "../$$name" $(APP).app) ;; \
 	esac; \
 	echo "built $$name"
 

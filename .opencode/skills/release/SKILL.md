@@ -1,6 +1,6 @@
 ---
 name: release
-description: Use when cutting a new public release of this app — e.g. "make a new release", "cut a release", "ship it", "publish a build", "download the CI builds and release". Covers the full pipeline: docs staleness check, golangci-lint/vet/test green, commit and push, dispatching the version-stamped CI matrix, waiting for it to go green, tagging with a semver version, downloading its artifacts, and creating the semver GitHub release with the assets attached.
+description: Use when cutting a new public release of this app — e.g. "make a new release", "cut a release", "ship it", "publish a build", "download the CI builds and release". Covers the full pipeline: docs staleness check, golangci-lint/vet/test green, commit and push, dispatching the version-stamped CI matrix, waiting for it to go green, tagging with a semver version, downloading its artifacts, generating SHA256SUMS, and creating the semver GitHub release with the assets attached.
 ---
 
 # Cut a Release
@@ -46,7 +46,7 @@ exactly one 3-OS run).
    - any feat / UI change / user-facing improvement → minor bump (`0.1.0` → `0.2.0`)
    - breaking change (prefs format, CLI flags removed) → major bump
    - never released a tag before → propose `0.1.0` (the committed
-     `FyneApp.toml` says `0.1.0`; treat that as the implicit baseline)
+     `build/config.yml` says `0.1.0`; treat that as the implicit baseline)
 2. **Ask the user to confirm the version** along with the commit
    review below. Same-day double releases are fine — just bump patch.
 3. Confirm the branch is `main` and show the user:
@@ -54,8 +54,14 @@ exactly one 3-OS run).
    - a one-paragraph summary of what's changing
    - the proposed commit message (sentence-case summary in the repo's
      style; `docs:` prefix when the commit is documentation-only)
-4. Update `FyneApp.toml` `Version` to the chosen version (cosmetic — the
-   CI stamp is authoritative — but keep it in sync).
+4. Update `build/config.yml` `info.version` to the chosen version
+   (cosmetic — the CI stamp is authoritative — but keep it in sync; it
+   feeds the macOS Info.plist and Windows version resources), then
+   regenerate the platform assets and include them in the commit:
+   ```sh
+   make ensure-wails3
+   wails3 task common:update:build-assets
+   ```
 5. **Ask the user to confirm** the commit message, file set, and
    version, then commit. Pushing happens in Phase 3; a plain push is
    safe (pushes don't trigger builds):
@@ -118,8 +124,8 @@ tag, and the release must all sit on this exact commit.
    gh api "repos/{owner}/{repo}/actions/runs/<RUN_ID>/artifacts" \
      --jq '.artifacts[] | [.name, .size_in_bytes] | @tsv'
    ```
-   Expect exactly: `fyne-template-linux-amd64.zip`,
-   `fyne-template-windows-amd64.exe.zip`, `fyne-template-macos.app.zip`,
+   Expect exactly: `wails-template-linux-amd64`,
+   `wails-template-windows-amd64.exe`, `wails-template-darwin-arm64.zip`,
    all with non-zero sizes. Missing artifact on a green run = packaging
    bug; stop and investigate.
 7. **Tag the built commit.** Tags don't trigger CI anymore — this is a
@@ -130,7 +136,7 @@ tag, and the release must all sit on this exact commit.
    git push origin refs/tags/<X.Y.Z>
    ```
 
-## Phase 4 — Download artifacts and publish
+## Phase 4 — Download artifacts, checksum, publish
 
 1. **Download the artifact archives** into a scratch dir. `gh api` has no
    `-o` flag, so redirect stdout (it prints the raw body). Resolve `$REPO`
@@ -139,7 +145,7 @@ tag, and the release must all sit on this exact commit.
    a git working tree:
    ```sh
    REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
-   mkdir -p /tmp/fyne-template-release && cd /tmp/fyne-template-release
+   mkdir -p /tmp/wails-template-release && cd /tmp/wails-template-release
    gh api "repos/$REPO/actions/runs/<RUN_ID>/artifacts" \
       --jq '.artifacts[] | [.id, .name] | @tsv' |
    while IFS=$'\t' read -r id name; do
@@ -150,49 +156,61 @@ tag, and the release must all sit on this exact commit.
    compare sizes against the `size_in_bytes` from the artifact listing
    in Phase 3 (they should match exactly; a short file means a
    truncated/HTML error body, not a zip).
-2. **Unwrap the artifact zips** — each contains one final release zip
-   (CI uploads zips, and the artifact service wraps those in another
-   zip). Extract the inner files; these are the release assets, attached
-   verbatim:
+2. **Unwrap the artifact zips** — each CI artifact zip contains exactly
+   one release asset (the raw linux binary, the raw windows exe, or the
+   macOS zip-of-.app):
    ```sh
    for f in *.zip; do unzip -o "$f"; done
-   # → fyne-template-linux-amd64.zip
-   #   fyne-template-windows-amd64.exe.zip
-   #   fyne-template-macos.app.zip
+   # → wails-template-linux-amd64
+   #   wails-template-windows-amd64.exe
+   #   wails-template-darwin-arm64.zip
+   rm -f wails-template-linux-amd64.zip \
+         wails-template-windows-amd64.exe.zip \
+         wails-template-darwin-arm64.zip
    ```
-   Don't re-zip or rename the inner files — attach them byte-for-byte so
-   checksums match what CI built (the in-app updater unpacks these).
-3. **Sanity-check the linux zip** contains the expected tree and the
-   binary carries its exec bit (the updater chmods anyway, but manual
-   installers `make install` straight from it):
+   Don't rename or re-compress the release assets — attach them
+   byte-for-byte so checksums match what CI built (the in-app updater
+   downloads these exact names).
+3. **Sanity-check the assets:**
    ```sh
-   unzip -l fyne-template-linux-amd64.zip | head
-   # expect fyne-template/usr/local/bin/fyne-template, Makefile, etc.
-   unzip -Z fyne-template-linux-amd64.zip | grep 'usr/local/bin'
-   # expect -rwxr-xr-x (or at least a regular file the updater chmods)
+   file wails-template-linux-amd64   # ELF 64-bit LSB executable, executable bit set
+   file wails-template-windows-amd64.exe  # PE32+ executable (GUI)
+   unzip -l wails-template-darwin-arm64.zip
+   # exactly one top-level entry: wails-template.app/ (the updater
+   # rejects multi-entry archives)
    ```
-4. **Release notes:** one bullet per commit since the last tag —
+4. **Generate `SHA256SUMS`** in the scratch dir — the updater fetches
+   this sidecar and refuses to install an asset whose hash doesn't match
+   (format is `sha256sum` output: `<hash>  <filename>`):
+   ```sh
+   sha256sum wails-template-linux-amd64 \
+             wails-template-windows-amd64.exe \
+             wails-template-darwin-arm64.zip > SHA256SUMS
+   cat SHA256SUMS   # three lines, bare asset filenames
+   ```
+5. **Release notes:** one bullet per commit since the last tag —
    `git log --oneline <last-tag>..<SHA>` condensed to user-facing
    changes (skip pure chore/docs commits unless notable). Show the notes
    to the user along with the version and asset list; **ask for final
    confirmation** before publishing.
-5. **Publish** (run from the repo working tree — repo inference needs a
+6. **Publish** (run from the repo working tree — repo inference needs a
    git tree; or add `-R $REPO`):
    ```sh
    gh release create <X.Y.Z> \
      --title <X.Y.Z> \
      --target <SHA> \
      --notes "<notes>" \
-     /tmp/fyne-template-release/fyne-template-linux-amd64.zip \
-     /tmp/fyne-template-release/fyne-template-windows-amd64.exe.zip \
-     /tmp/fyne-template-release/fyne-template-macos.app.zip
+     /tmp/wails-template-release/wails-template-linux-amd64 \
+     /tmp/wails-template-release/wails-template-windows-amd64.exe \
+     /tmp/wails-template-release/wails-template-darwin-arm64.zip \
+     /tmp/wails-template-release/SHA256SUMS
    ```
-6. **Verify:**
+7. **Verify:**
    ```sh
    gh release view <X.Y.Z> --json tagName,isDraft,isPrerelease,url,assets \
      --jq '{tagName, isDraft, isPrerelease, url, assets: [.assets[].name]}'
    ```
-   Expect not-draft, not-prerelease, and the three assets (there is no
+   Expect not-draft, not-prerelease, and all four assets (there is no
    queryable `isLatest` field — GitHub marks the newest semver release
    Latest automatically, see the gh quirks). Clean up the scratch dir.
    Report the release URL to the user.
@@ -205,18 +223,21 @@ see the new tag on their next launch.
 - **Never release from a red or unpushed tree.** Phase 1 and 2 gate
   everything; the shipped binaries must come from the green dispatch run
   sitting on the release SHA.
-- Tag/title format is strictly semver `X.Y.Z`, zero `v` prefix.
+- Tag/title format is strictly semver `X.Y.Z`, zero `v` prefix (the
+  updater's GitHub provider tolerates either, but tags here are bare).
 - **The dispatch run is the one that ships:** its `version` input is
   stamped into `version.go` before compiling. Never publish artifacts
   from a pull-request run or any other unstamped build (those say
   `version = "dev"` and would never update-check), and never dispatch
   with a version other than the one the tag and release will use — the
   stamped binary and the tag must agree.
-- The macOS artifact is a zipped `.app` *directory* (not a single
-  file); the Windows artifact is the GUI-subsystem exe zipped by CI.
-  The updater needs these exact layouts — if the packaging steps in the
-  Makefile's `artifact` target change, update `stagePayloadFor` in
-  `update.go` and its tests in the same commit.
+- **Asset layout is the updater contract:** names must contain
+  GOOS+GOARCH (the provider's `DefaultAssetMatcher` picks by substring —
+  that's why macOS assets say `darwin-arm64`, not `macos`), the darwin
+  zip must hold the `.app` as its sole top-level entry, and `SHA256SUMS`
+  must list the exact asset filenames. These are pinned by
+  `make artifact-name`/`make artifact` and the `initUpdater` wiring in
+  `main.go` — change them together.
 - `gh run watch` without `--exit-status` exits 0 even on failure —
   always pass it, or a failed build silently becomes a "successful"
   wait.

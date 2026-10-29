@@ -1,17 +1,13 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Built binaries
-/fyne-template
-/fyne-template.exe
-fyne-template.app/
-*.tar.xz
+# Wails v3 project layout
+.task
+bin/
+frontend/dist/
+frontend/bindings/
+frontend/node_modules/
 
-# fyne package / release scratch
-upload/
-unpack/
+# Release artifacts produced by `make artifact`
 *.zip
-__MACOSX/
+SHA256SUMS
 
 # Binaries for programs and plugins
 *.exe
@@ -46,6 +42,3 @@ go.work.sum
 # Session working notes (untracked reference)
 .opencode/*
 !.opencode/skills/
-
-# Update-relic trash from rename-first self-update (cleanupOlds sweeps at startup)
-*.old

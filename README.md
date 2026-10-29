@@ -1,87 +1,96 @@
-# fyne-template
+# wails-template
 
-A batteries-included starter template for [Fyne](https://fyne.io) desktop
-apps in Go. It ships a working hello-world window plus the plumbing that's
-painful to bolt on later: a multi-platform CI build, a semver release
-pipeline driven by an agent skill, and a GitHub-Releases-powered in-app
-auto-updater with preferences.
+A batteries-included starter template for [Wails v3](https://wails.io)
+desktop apps in Go, with a [Svelte](https://svelte.dev) frontend. It ships a
+working hello-world window plus the plumbing that's painful to bolt on later:
+a multi-platform CI build, a semver release pipeline driven by an agent
+skill, and the framework's GitHub-Releases-powered in-app auto-updater.
 
 ## What's included
 
-- **Minimal Fyne app** — single-window hello app, embedded `icon.png`,
-  `FyneApp.toml` app metadata
-- **In-app auto-updater** (`update.go`, `semver.go`) — checks GitHub
-  Releases on launch, offers **Update / Later / Never**, downloads the
-  platform zip, swaps the running binary (or `.app` bundle), and relaunches.
-  "Never" persists via Fyne preferences; Help → Check for Updates bypasses it
-- **Preferences persistence** (`prefs.go`) — the update opt-out plus window-size
-  restore, as a minimal example of `fyne.Preferences`
+- **Minimal Wails v3 app** — Go services model (no context threading),
+  single window with persisted size, Svelte 5 + Vite 8 frontend embedded at
+  compile time, `build/` platform assets with your icon and metadata
+- **In-app auto-updater** — wired to this repo's GitHub Releases via
+  Wails' built-in updater: silent check on launch (only surfaces when an
+  update exists), Help → Check for Updates… always reports an outcome,
+  `SHA256SUMS` digest verification, atomic swap with rollback, and the
+  framework's themed update window (Install / Skip This Version / Remind Me
+  Later)
+- **Preferences persistence** (`prefs.go`) — window-size restore backed by
+  the v3 `kvstore` service (a JSON file under the OS config directory)
 - **CI** (`.github/workflows/ci.yml`) — PR validation plus on-demand
-  `workflow_dispatch` builds that stamp a version into the binary and produce
-  Linux, Windows, and macOS release zips via the same `make` targets used
-  locally
+  `workflow_dispatch` builds that stamp a version into the binary and
+  produce the Linux, Windows, and macOS release assets via the same `make`
+  targets used locally
 - **Lint** (`.github/workflows/lint.yml`) — `make lint` (golangci-lint) on
   every push/PR
 - **Release skill** (`.opencode/skills/release/SKILL.md`) — agent-driven
   pipeline: checks → commit → dispatch CI → tag-after-green → publish GitHub
-  release with the three artifacts attached
+  release with the artifacts and `SHA256SUMS` attached
 - **Branding skill** (`.opencode/skills/branding/SKILL.md`) — agent-driven
   one-shot conversion of this template into your app repo: gathers the app
-  identity, renames every token, rewrites this README for your users, updates
-  AGENTS.md and the release skill, gates on a green build, then deletes itself
-- **Makefile** — `build`, `run`, `test`, `lint`, `fmt`, `vet`, `package`, `clean`
-- **Dependabot** — weekly Go module and GitHub Actions update PRs
+  identity, renames every token, rewrites this README for your users, gates
+  on a green build, and self-deletes. **Never commits — you review and
+  commit.**
+- **Makefile** — the single source of build commands, shared with CI
+- **Dependabot** — weekly Go and GitHub Actions updates, with automerge on
+  green
 
-## Using this template
+## Requirements
 
-The easiest path: run the **branding skill** (`.opencode/skills/branding`)
-from an agent session — it asks for your app name, GitHub repo, ID, and
-description, performs every rename below, rewrites this README as your app's
-user-facing landing page, verifies the result, and removes itself.
+- **Go 1.26+**
+- **Node.js 22+** (the frontend is a Vite project; `npm install` runs as
+  part of the build)
+- **`wails3` CLI** — `make build` installs the version pinned in `go.mod`
+  into `$(go env GOPATH)/bin` automatically (`make ensure-wails3`)
+- **Linux only:** GTK4 + WebKitGTK 6.0 dev packages (Ubuntu 24.04+ /
+  Debian 13+) — `make linux-deps` installs them. Distributions that ship
+  only WebKit2GTK 4.1 build with `-tags gtk3` (supported through v3.0.x).
 
-If you'd rather rename by hand, the identity tokens are `fyne-template` and
-`ChristianWSmith`:
-
-| Where | What |
-|---|---|
-| `go.mod` | module path |
-| `FyneApp.toml` | `Name`, `ID` |
-| `update.go` | `appName`, `updateRepo` consts |
-| `main.go` | `app.NewWithID(...)`, window title |
-| `Makefile` | `APP` |
-| `.gitignore` | binary name lines |
-| `icon.png` | replace with your app icon (512×512 PNG) |
-
-`updateRepo` must be the real `owner/repo` of your app or the updater will
-query the wrong (or non-existent) GitHub project. `appName` must match the
-name `fyne package` produces (`FyneApp.toml` `Name`) — the updater looks for
-release assets and binaries named after it.
-
-## Building
+## Getting started
 
 ```sh
-make build          # go build → ./fyne-template
 make run            # build + run
+make dev            # hot reload (Go rebuilds + Vite dev server)
+make build          # production build → bin/wails-template
 make test           # go test -short ./...
-make lint           # golangci-lint (version pinned in go.mod)
-make package        # fyne package -release for the current OS
-make package PKGOS=windows # cross-package (needs mingw for cgo)
-make artifact       # package + build the release zip for this OS
+make lint           # golangci-lint
+make package        # platform release payload (.app bundle on macOS)
+make artifact       # the exact release asset the updater downloads
 ```
 
-Linux needs the usual Fyne cgo deps to build:
-`build-essential libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev`.
+## Renaming the template
 
-## Releasing
+The identity tokens are `wails-template` (app name, asset prefix, module
+tail) and `ChristianWSmith` (owner). Grep both and update:
 
-Releases are cut with the `release` agent skill (`.opencode/skills/release/SKILL.md`):
-it gates on lint/vet/test, bumps `FyneApp.toml`, dispatches the CI matrix with
-the version to stamp, tags the exact green commit with semver `X.Y.Z` (no `v`
-prefix), and publishes a GitHub release with the three platform zips attached.
-Installed apps pick up the new version on their next launch.
+- `go.mod` (module path)
+- `main.go` (`appName`, `updateRepo`)
+- `build/config.yml` (`productName`, `productIdentifier`, …), then run
+  `wails3 task common:update:build-assets` to regenerate the platform
+  metadata
+- `Taskfile.yml` (`APP_NAME`)
+- `frontend/index.html` (title) and `frontend/src/App.svelte` (bindings
+  import path — it contains the module path)
+- `Makefile` (`APP`), `.gitignore`, `.opencode/skills/release/SKILL.md`
+- `build/appicon.png` — replace with your icon (512×512 PNG); `wails3
+  task common:generate:icons` regenerates the `.ico`/`.icns`
 
-Manual path, summarized: `gh workflow run .github/workflows/ci.yml -f
-version=X.Y.Z`, wait for green, tag, `gh release create X.Y.Z <zips>`.
+`appName` must equal `build/config.yml`'s `productName` and Taskfile's
+`APP_NAME` — packaging, the window title, the prefs file, and the updater
+all key off the same string. The updater derives release asset names from
+`GOOS`/`GOARCH` substrings, so keep the `make artifact-name` convention when
+changing them.
+
+## Release process
+
+Driven by the release skill. Short version: bump `build/config.yml`'s
+version, commit, dispatch the build workflow with the same `X.Y.Z` version
+input (CI stamps it into `version.go`), tag the green build, publish a
+GitHub release with the three platform assets plus a `SHA256SUMS` file. The
+in-app updater picks the asset matching the running platform and verifies
+the download against `SHA256SUMS`.
 
 ## License
 

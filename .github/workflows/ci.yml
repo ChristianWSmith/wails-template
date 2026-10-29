@@ -1,4 +1,4 @@
-name: Build Fyne App
+name: Build Wails App
 
 # Builds run only on demand: the release skill dispatches this workflow
 # with the version to stamp into the binary, and pull requests build to
@@ -34,6 +34,13 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
       - name: Validate version input
         if: github.event_name == 'workflow_dispatch'
         shell: bash
@@ -47,10 +54,10 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         shell: bash
         # Overwrite the committed "dev" placeholder with the release version
-        # so the binary knows its own version for the startup update check.
+        # so the binary knows its own version for the update check.
         run: printf 'package main\n\n// version is the release this binary was built from.\nvar version = "%s"\n' "${{ inputs.version }}" > version.go
 
-      - name: Install Fyne Build Dependencies (Linux)
+      - name: Install Wails Build Dependencies (Linux)
         if: runner.os == 'Linux'
         run: make linux-deps
 
@@ -60,6 +67,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: command -v make || choco install make -y
+
+      - name: Install wails3 CLI
+        shell: bash
+        # Pinned to the version go.mod requires (make ensure-wails3 reads
+        # it from `go list -m`). The build Taskfiles shell out to `wails3`.
+        run: |
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          make ensure-wails3
 
       - name: Vet and Test
         shell: bash

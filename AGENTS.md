@@ -1,84 +1,96 @@
 # AGENTS.md
 
-Guide for AI agents (and humans) working in this repository. This is a Fyne
-v2 desktop-app template: single-package `main`, GitHub Releases distribution,
-in-app auto-updater.
+Guide for AI agents (and humans) working in this repository. This is a
+Wails v3 desktop-app template (Go services + Svelte 5 frontend): single Go
+module at the repo root, GitHub Releases distribution, framework in-app
+auto-updater.
 
 ## Commands
 
 ```sh
-make build          # go build -o fyne-template .
+make build          # wails3 build → bin/wails-template (bootstraps pinned wails3 CLI)
 make run            # build + run
+make dev            # hot reload: wails3 dev (Go rebuilds + Vite dev server)
 make test           # go test -short ./...   (CI's test command)
 make lint           # golangci-lint via go tool; version lives in go.mod
 make fmt            # gofmt -w .
 make vet            # go vet ./...
-make package        # fyne package -release (current OS); PKGOS=linux|windows|darwin to cross
-make artifact       # package + produce the release zip for the current OS
-make artifact-name  # print that zip's name (CI uses it for the artifact name)
+make package        # platform release payload (.app bundle on macOS; binary elsewhere)
+make artifact       # produce the release asset the updater downloads for this OS
+make artifact-name  # print that asset's name (CI uses it for the artifact name)
+make ensure-wails3  # install the wails3 CLI at go.mod's pinned version
+make linux-deps     # apt install GTK4 + WebKitGTK 6.0 build deps (Linux only)
 ```
 
-Full (non-short) tests include one network smoke test (live GitHub release
-query) — `go test ./...` without `-short` needs internet (and skips gracefully
-until the repo has published its first release).
+`make test` / `make vet` / `make lint` create a stub `frontend/dist/` when
+missing so `//go:embed` compiles on a fresh clone; the first real build
+replaces it. The `wails3` CLI is required on PATH for build/package (the
+stock Taskfiles shell out to it) — `make ensure-wails3` handles that, and
+the Makefile prepends `$(go env GOPATH)/bin` to PATH.
 
 ## Layout
 
-Flat single-package layout; everything is `package main` in the repo root:
-
-| File | Role |
+| Path | Role |
 |---|---|
-| `main.go` | app entry: window, menus, startup update check, update dialogs |
-| `prefs.go` | preference keys + helpers (update opt-out, window size) |
+| `main.go` | composition root: app + services + window + menu + updater wiring |
+| `appservice.go` | `AppService` — frontend-callable methods (`GetVersion`, `SaveWindowSize`) and the update-check flow |
+| `prefs.go` | preference keys + window-size helpers (backed by the v3 `kvstore` service) |
 | `version.go` | **stamp-only**: `var version = "dev"` — CI overwrites the whole file on release builds; never put logic here |
-| `semver.go` | strict `X.Y.Z` parse/compare, `updateAvailable` |
-| `update.go` | release check, download, zip extract (zip-slip safe), payload staging, `cleanupOlds` |
-| `update_{linux,windows,darwin,other}.go` | build-tagged `replaceAndRelaunch` per platform |
-| `FyneApp.toml` | app Name/ID/Icon/Version — `fyne package` reads this |
-| `icon.png` | 512×512; embedded at compile time (`//go:embed`) for the window icon, referenced by `FyneApp.toml` for packaging |
+| `frontend/` | Svelte 5 + Vite app; built into `frontend/dist` (embedded, gitignored) and `frontend/bindings` (generated per build, gitignored) |
+| `Taskfile.yml` + `build/` | stock Wails v3 build system (per-OS tasks, packaging, icons, platform metadata). `build/config.yml` holds product name/ID/version; run `wails3 task common:update:build-assets` after editing it |
+| `build/appicon.png` | the app icon source (512×512 PNG); `wails3 task common:generate:icons` derives `.ico`/`.icns` |
+| `Makefile` | the single source of build/package commands, shared with CI |
 
 ## Release pipeline
 
 - CI (`.github/workflows/ci.yml`) builds only on `workflow_dispatch` (release)
   and `pull_request`. Pushes never build. The dispatch input `version`
   (`X.Y.Z`) is stamped over `version.go` before compiling. Build, test, and
-  packaging steps call the Makefile (`make vet`, `make test`, `make artifact`)
-  so CI and local flows are the same commands; the uploaded artifact name
-  comes from `make artifact-name`.
-- Artifacts: `fyne-template-linux-amd64.zip` (tar.xz tree re-zipped),
-  `fyne-template-windows-amd64.exe.zip`, `fyne-template-macos.app.zip`.
-  These exact layouts are pinned by `TestStagePayloadPublishedLayouts` —
-  change the Makefile `artifact` target and `update.go` staging in the same
-  commit. Lint CI (`.github/workflows/lint.yml`) also runs `make lint`.
+  packaging steps call the Makefile (`make vet`, `make test`,
+  `make artifact`) so CI and local flows are the same commands; the uploaded
+  artifact name comes from `make artifact-name`.
+- Release assets (named for the updater's GitHub provider matcher, which
+  picks by GOOS+GOARCH substrings): `wails-template-linux-amd64` (raw
+  binary), `wails-template-windows-amd64.exe` (raw),
+  `wails-template-darwin-arm64.zip` (the `.app` bundle as the sole
+  top-level entry — the updater rejects multi-entry archives). The release
+  skill adds a `SHA256SUMS` sidecar that the updater verifies downloads
+  against. These layouts are a contract between `make artifact`,
+  `build/config.yml`, and `initUpdater` in `main.go` — change them together.
 - Tags are plain semver `X.Y.Z` (no `v`), created only after the dispatch
   build is green. The `release` skill (`.opencode/skills/release/SKILL.md`)
   is the canonical cut-a-release procedure.
 - The updater queries `https://api.github.com/repos/<updateRepo>/releases/latest`
-  (`updateRepo` const in `update.go`). `version = "dev"` never update-checks.
+  (`updateRepo` const in `main.go`). `version = "dev"` never update-checks.
 
 ## Conventions
 
 - **Formatting/lint:** golangci-lint (`.golangci.yml`) + `go vet`; no other
-  style tooling. Keep `make lint` green.
+  style tooling. Keep `make lint` green. `build/` is excluded from lint —
+  it is stock/regenerated Wails scaffolding, not application code.
 - **Tests:** `-short` must skip anything network-bound (`testing.Short()`).
-- **UI threading:** never touch widgets off the fyne thread; marshal with
-  `fyne.Do(func(){ ... })`. Check the Fyne documentation for threading
-  rules when building complex UI.
-- **Prefs:** keys live in `prefs.go`; "Never" opt-outs are written
-  immediately (a crash must not resurrect a dismissed prompt), not batched
-  to app close.
+- **Services are plain Go:** v3 services take dependencies by hand (see
+  `AppService`); never thread a context through them. Frontend calls go
+  through generated bindings (regenerated by every build — never edit
+  `frontend/bindings` by hand). The framework owns all update UI; do not
+  hand-roll dialogs for it.
+- **Prefs:** keys live in `prefs.go`; the kvstore is created with
+  `AutoSave: true` so every write is durable immediately (a crash must not
+  lose state).
 - **version.go stays stamp-only.** The CI stamp step replaces the file
   wholesale.
-- **`make package` rewrites `FyneApp.toml`** — the fyne CLI re-serializes
-  the file and increments `Build` on every run. Local-only noise (CI's
-  copy is ephemeral); discard with `git checkout -- FyneApp.toml` when
-  you don't want the bump committed.
+- **`build/config.yml` is the identity file.** After changing `info:`, run
+  `wails3 task common:update:build-assets` and commit the regenerated
+  assets. The release skill bumps its `version` in lockstep with the
+  dispatch input (two sources, one release).
 
 ## Renaming the template
 
-The identity tokens are `fyne-template` (app name, asset prefix, module tail)
-and `ChristianWSmith` (owner). Grep both and update: `go.mod`,
-`FyneApp.toml` (Name + ID), `update.go` (`appName`, `updateRepo`), `main.go`
-(`app.NewWithID`), `Makefile` (`APP`), `.gitignore` (binary lines), plus
-`icon.png`. `appName` must equal `FyneApp.toml` `Name` — the
-updater derives asset and binary names from it.
+The identity tokens are `wails-template` (app name, asset prefix, module
+tail) and `ChristianWSmith` (owner). Grep both and update: `go.mod`,
+`main.go` (`appName`, `updateRepo`), `build/config.yml` (+ regenerate build
+assets), `Taskfile.yml` (`APP_NAME`), `frontend/index.html` (title),
+`frontend/src/App.svelte` (bindings import path contains the module path),
+`Makefile` (`APP`), `.gitignore`, `icon` (`build/appicon.png`), plus this
+file and the release skill. `appName` must equal `build/config.yml`'s
+`productName` and Taskfile's `APP_NAME`.

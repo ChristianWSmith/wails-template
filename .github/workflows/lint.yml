@@ -18,9 +18,10 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # golangci-lint typechecks, and Fyne's cgo packages need the GL/X
-      # headers to load — same deps the build workflow installs.
-      - name: Install Fyne Build Dependencies (Linux)
+      # golangci-lint typechecks, and Wails' cgo packages need the
+      # GTK4/WebKitGTK headers to load — same deps the build workflow
+      # installs.
+      - name: Install Wails Build Dependencies (Linux)
         run: make linux-deps
 
       - name: Lint

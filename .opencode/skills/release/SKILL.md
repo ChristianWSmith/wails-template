@@ -157,7 +157,9 @@ tag, and the release must all sit on this exact commit.
    truncated/HTML error body, not a zip).
 2. **Unwrap the artifact zips** — each CI artifact zip contains exactly
    one release asset (the raw linux binary, the raw windows exe, or the
-   macOS zip-of-.app):
+   macOS zip-of-.app). Note the darwin asset is already a `.zip`, so the
+   artifact-service wrapper around it is `.zip.zip` — delete the wrappers,
+   never the assets (`*.zip` matches the double-suffixed wrapper too):
    ```sh
    for f in *.zip; do unzip -o "$f"; done
    # → wails-template-linux-amd64
@@ -165,7 +167,9 @@ tag, and the release must all sit on this exact commit.
    #   wails-template-darwin-arm64.zip
    rm -f wails-template-linux-amd64.zip \
          wails-template-windows-amd64.exe.zip \
-         wails-template-darwin-arm64.zip
+         wails-template-darwin-arm64.zip.zip
+   ls   # exactly the three assets (+ SHA256SUMS after the next step); any
+        # leftover *.zip here means a wrapper survived — remove it
    ```
    Don't rename or re-compress the release assets — attach them
    byte-for-byte so checksums match what CI built (the in-app updater

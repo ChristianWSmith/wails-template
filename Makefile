@@ -7,23 +7,42 @@ WAILS_VERSION := $(shell go list -m -f '{{.Version}}' github.com/wailsapp/wails/
 # The stock Taskfiles shell out to `wails3`, so the CLI must be on PATH.
 export PATH := $(GOPATH_BIN):$(PATH)
 
-.PHONY: build run dev test lint fmt vet linux-deps ensure-wails3 package artifact artifact-name clean
+.PHONY: build run dev build-assets test lint fmt vet linux-deps deps package artifact artifact-name clean
 
-# Installs wails3 into GOPATH/bin when missing or at a different version
-# than go.mod pins.
-ensure-wails3:
+# deps ensures the developer toolchain the build needs: the pinned wails3
+# CLI (auto-installed into GOPATH/bin) and Node.js 22+ (checked — install
+# from https://nodejs.org if missing). On Linux it also warns when the
+# GTK4/WebKitGTK 6.0 build libraries are absent — install those with
+# `make linux-deps` (or build with `-tags gtk3` on older distros).
+deps:
 	@command -v wails3 >/dev/null 2>&1 && \
 	  [ "$$(wails3 version 2>/dev/null | head -1 | tr -d 'v' | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+')" = "$(WAILS_VERSION:v%=%)" ] || \
 	  go install github.com/wailsapp/wails/v3/cmd/wails3@$(WAILS_VERSION)
+	@major=$$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0); \
+	if [ "$$major" -lt 22 ]; then \
+	  echo "error: Node.js 22+ is required (found $$(node -v 2>/dev/null || echo 'nothing on PATH'))." >&2; \
+	  echo "Install it from https://nodejs.org (or your package manager) and re-run 'make deps'." >&2; \
+	  exit 1; \
+	fi
+	@if [ "$$(go env GOOS)" = "linux" ] && command -v pkg-config >/dev/null 2>&1 && ! pkg-config --exists webkitgtk-6.0; then \
+	  echo "warning: WebKitGTK 6.0 dev libraries not found; run 'make linux-deps'," >&2; \
+	  echo "         or build with '-tags gtk3' on distributions that ship WebKit2GTK 4.1." >&2; \
+	fi
 
-build: ensure-wails3
+build: deps
 	wails3 build
 
 run: build
 	./bin/$(APP)
 
-dev: ensure-wails3
+dev: deps
 	wails3 dev
+
+# Regenerates the platform build assets (Info.plist, Windows version
+# resources, .desktop, nfpm metadata) from build/config.yml's info block —
+# run after editing it. Wraps the task so wails3 is on PATH.
+build-assets: deps
+	wails3 task common:update:build-assets
 
 # frontend/dist is embedded into the binary (//go:embed) but only exists
 # after a frontend build. Stub it so plain `go vet` / `go test` compile on

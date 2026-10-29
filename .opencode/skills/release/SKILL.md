@@ -59,8 +59,7 @@ exactly one 3-OS run).
    feeds the macOS Info.plist and Windows version resources), then
    regenerate the platform assets and include them in the commit:
    ```sh
-   make ensure-wails3
-   wails3 task common:update:build-assets
+   make build-assets
    ```
 5. **Ask the user to confirm** the commit message, file set, and
    version, then commit. Pushing happens in Phase 3; a plain push is

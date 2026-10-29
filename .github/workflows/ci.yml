@@ -68,13 +68,14 @@ jobs:
         shell: bash
         run: command -v make || choco install make -y
 
-      - name: Install wails3 CLI
+      - name: Install dev deps
         shell: bash
-        # Pinned to the version go.mod requires (make ensure-wails3 reads
-        # it from `go list -m`). The build Taskfiles shell out to `wails3`.
+        # Ensures the wails3 CLI at the version go.mod pins (the build
+        # Taskfiles shell out to it) and checks Node is 22+. The Linux
+        # build libraries were installed by `make linux-deps` above.
         run: |
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          make ensure-wails3
+          make deps
 
       - name: Vet and Test
         shell: bash

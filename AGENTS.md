@@ -11,6 +11,7 @@ auto-updater.
 make build          # wails3 build → bin/wails-template (bootstraps pinned wails3 CLI)
 make run            # build + run
 make dev            # hot reload: wails3 dev (Go rebuilds + Vite dev server)
+make build-assets   # regenerate platform metadata from build/config.yml
 make test           # go test -short ./...   (CI's test command)
 make lint           # golangci-lint via go tool; version lives in go.mod
 make fmt            # gofmt -w .
@@ -18,14 +19,15 @@ make vet            # go vet ./...
 make package        # platform release payload (.app bundle on macOS; binary elsewhere)
 make artifact       # produce the release asset the updater downloads for this OS
 make artifact-name  # print that asset's name (CI uses it for the artifact name)
-make ensure-wails3  # install the wails3 CLI at go.mod's pinned version
+make deps           # ensure dev toolchain: wails3 CLI at go.mod's pin, Node 22+
 make linux-deps     # apt install GTK4 + WebKitGTK 6.0 build deps (Linux only)
 ```
 
 `make test` / `make vet` / `make lint` create a stub `frontend/dist/` when
 missing so `//go:embed` compiles on a fresh clone; the first real build
 replaces it. The `wails3` CLI is required on PATH for build/package (the
-stock Taskfiles shell out to it) — `make ensure-wails3` handles that, and
+stock Taskfiles shell out to it) — `make deps` handles that (it also checks
+Node is 22+ and warns on missing Linux WebKitGTK libs), and
 the Makefile prepends `$(go env GOPATH)/bin` to PATH.
 
 ## Layout
@@ -37,8 +39,8 @@ the Makefile prepends `$(go env GOPATH)/bin` to PATH.
 | `prefs.go` | preference keys + window-size helpers (backed by the v3 `kvstore` service) |
 | `version.go` | **stamp-only**: `var version = "dev"` — CI overwrites the whole file on release builds; never put logic here |
 | `frontend/` | Svelte 5 + Vite app; built into `frontend/dist` (embedded, gitignored) and `frontend/bindings` (generated per build, gitignored) |
-| `Taskfile.yml` + `build/` | stock Wails v3 build system (per-OS tasks, packaging, icons, platform metadata). `build/config.yml` holds product name/ID/version; run `wails3 task common:update:build-assets` after editing it |
-| `build/appicon.png` | the app icon source (512×512 PNG); `wails3 task common:generate:icons` derives `.ico`/`.icns` |
+| `Taskfile.yml` + `build/` | stock Wails v3 build system (per-OS tasks, packaging, icons, platform metadata). `build/config.yml` holds product name/ID/version; run `make build-assets` after editing it |
+| `build/appicon.png` | the app icon source (512×512 PNG); `wails3 task common:generate:icons` (run automatically by every build) derives `.ico`/`.icns` |
 | `Makefile` | the single source of build/package commands, shared with CI |
 
 ## Release pipeline
@@ -80,9 +82,9 @@ the Makefile prepends `$(go env GOPATH)/bin` to PATH.
 - **version.go stays stamp-only.** The CI stamp step replaces the file
   wholesale.
 - **`build/config.yml` is the identity file.** After changing `info:`, run
-  `wails3 task common:update:build-assets` and commit the regenerated
-  assets. The release skill bumps its `version` in lockstep with the
-  dispatch input (two sources, one release).
+  `make build-assets` and commit the
+  regenerated assets. The release skill bumps its `version` in lockstep with
+  the dispatch input (two sources, one release).
 
 ## Renaming the template
 

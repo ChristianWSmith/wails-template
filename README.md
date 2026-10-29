@@ -42,8 +42,9 @@ skill, and the framework's GitHub-Releases-powered in-app auto-updater.
 - **Go 1.26+**
 - **Node.js 22+** (the frontend is a Vite project; `npm install` runs as
   part of the build)
-- **`wails3` CLI** — `make build` installs the version pinned in `go.mod`
-  into `$(go env GOPATH)/bin` automatically (`make ensure-wails3`)
+- **`wails3` CLI + Node check** — `make deps` (run automatically by
+  `make build` / `make dev`) installs the `wails3` version pinned in
+  `go.mod` into `$(go env GOPATH)/bin` and verifies Node is recent enough
 - **Linux only:** GTK4 + WebKitGTK 6.0 dev packages (Ubuntu 24.04+ /
   Debian 13+) — `make linux-deps` installs them. Distributions that ship
   only WebKit2GTK 4.1 build with `-tags gtk3` (supported through v3.0.x).
@@ -68,14 +69,13 @@ tail) and `ChristianWSmith` (owner). Grep both and update:
 - `go.mod` (module path)
 - `main.go` (`appName`, `updateRepo`)
 - `build/config.yml` (`productName`, `productIdentifier`, …), then run
-  `wails3 task common:update:build-assets` to regenerate the platform
-  metadata
+  `make build-assets` to regenerate the platform metadata
 - `Taskfile.yml` (`APP_NAME`)
 - `frontend/index.html` (title) and `frontend/src/App.svelte` (bindings
   import path — it contains the module path)
 - `Makefile` (`APP`), `.gitignore`, `.opencode/skills/release/SKILL.md`
-- `build/appicon.png` — replace with your icon (512×512 PNG); `wails3
-  task common:generate:icons` regenerates the `.ico`/`.icns`
+- `build/appicon.png` — replace with your icon (512×512 PNG); the next
+  `make build` regenerates the `.ico`/`.icns`
 
 `appName` must equal `build/config.yml`'s `productName` and Taskfile's
 `APP_NAME` — packaging, the window title, the prefs file, and the updater

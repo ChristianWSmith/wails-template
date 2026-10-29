@@ -78,8 +78,7 @@ its own assets.
 if the identity changed:
 
 ```sh
-make ensure-wails3
-wails3 task common:update:build-assets
+make build-assets
 ```
 
 Verify Phase 1 before moving on — these greps must print nothing:

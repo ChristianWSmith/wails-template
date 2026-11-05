@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/adrg/xdg v0.5.3
-	github.com/wailsapp/wails/v3 v3.0.0
+	github.com/wailsapp/wails/v3 v3.1.0
 )
 
 require (
@@ -100,6 +100,7 @@ require (
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/dominikbraun/graph v0.23.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
@@ -147,6 +148,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/rpmpack v0.7.1 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gookit/color v1.6.1 // indirect
 	github.com/gordonklaus/ineffassign v0.2.0 // indirect
@@ -164,9 +166,6 @@ require (
 	github.com/hexops/gotextdiff v1.0.3 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/jackmordaunt/icns/v2 v2.2.7 // indirect
-	github.com/jaypipes/ghw v0.21.3 // indirect
-	github.com/jaypipes/pcidb v1.1.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jgautheron/goconst v1.11.0 // indirect
 	github.com/jjti/go-spancheck v0.6.5 // indirect
@@ -179,8 +178,6 @@ require (
 	github.com/klauspost/compress v1.18.7 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
-	github.com/konoui/go-qsort v0.1.0 // indirect
-	github.com/konoui/lipo v0.10.0 // indirect
 	github.com/kulti/thelper v0.7.1 // indirect
 	github.com/kunwardeep/paralleltest v1.0.16 // indirect
 	github.com/ldez/exptostd v0.4.5 // indirect
@@ -191,7 +188,6 @@ require (
 	github.com/ldez/usetesting v0.5.0 // indirect
 	github.com/leaanthony/clir v1.7.0 // indirect
 	github.com/leaanthony/dmg v0.0.0-20260731074841-5c28840cf819 // indirect
-	github.com/leaanthony/winicon v1.0.0 // indirect
 	github.com/leonklingele/grouper v1.1.2 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lmittmann/tint v1.1.3 // indirect
@@ -227,7 +223,6 @@ require (
 	github.com/nunnatsa/ginkgolinter v0.24.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.4.3 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
@@ -294,7 +289,6 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/yuin/goldmark v1.7.17 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
-	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zalando/go-keyring v0.2.6 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	gitlab.com/bosi/decorder v0.4.2 // indirect
